@@ -1,0 +1,39 @@
+import sys
+from eth_abi import encode
+
+# Copied from EIP
+def fake_exponential(factor: int, numerator: int, denominator: int) -> int:
+    i = 1
+    output = 0
+    numerator_accum = factor * denominator
+    while numerator_accum > 0:
+        output += numerator_accum
+        numerator_accum = (numerator_accum * numerator) // (denominator * i)
+        i += 1
+    return output // denominator
+
+def encode_and_print(price):
+    enc = encode(['uint256'], [int(price)])
+    ## append 0x for FFI parsing
+    print("0x" + enc.hex())
+
+# Expect exactly one argument
+if len(sys.argv) != 2:
+    exit(1)
+
+# Read arg as excess value.
+excess = int(sys.argv[1])
+
+# Constants from the contracts. Same for both - consolidations and withdrawals.
+FACTOR = 1
+DENOMINATOR = 17
+
+# Compute fee.
+fee = fake_exponential(FACTOR, excess, DENOMINATOR)
+
+# Note that eth_abi::encode does not work if value > type(uint).max.
+# If this is the case, just print zero.
+try:
+    print("0x" + encode(['uint256'], [fee]).hex())
+except Exception as e:
+    print("0x" + encode(['uint256'], [int(0)]).hex())

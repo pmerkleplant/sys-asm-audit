@@ -51,7 +51,46 @@ contract FakeExpoTest is Test {
 
     // -- Tests --
 
+    // @audit Breaks implicit invariant of only increasing fee!
+    function test_NotDecreasing() public pure {
+        // Eventhough we get an overflow at ~2.8k, the result is still only
+        // increasing.
+        uint force = 10_000;
+        uint prev;
+        uint biggest = type(uint).max;
+        for (uint i; i < force; i++) {
+            uint cur = fakeExpo(i);
+
+            if (i == 2892) {
+                biggest = cur;
+            }
+
+            if (cur > biggest) {
+
+            //if (prev > cur) {
+                console.log("biggest", biggest);
+                console.log("prev", prev);
+                console.log("cur", cur);
+                console.log("i", i);
+                console.log("-------------");
+            }
+            //assertTrue(prev <= cur);
+            prev = cur;
+        }
+        assertTrue(false);
+    }
+
+    function test_Plot() public pure {
+        for (uint i; i < 10_000; i++) {
+            uint cur = fakeExpo(i);
+            console.log(cur);
+        }
+        assertTrue(false);
+    }
+
     function test_Overflow() public {
+        console.log(fakeExpo(2998));
+
         // Does not overflow.
         fakeExpoChecked(2892);
 
@@ -60,11 +99,8 @@ contract FakeExpoTest is Test {
         fakeExpoChecked(2893);
     }
 
-    // Proves that the geas fake_expo functionality is implemented correctly for
-    // excess \in [0, 2893).
-    function test_Equivalence(uint excess) public {
-        // Note that uint256 overflow occurs for excess >= 2893.
-        excess = _bound(excess, 0, 2892);
+    function test_EquivalenceSolidity(uint excess) public {
+        vm.assume(excess < 100_000);
 
         uint want = fakeExpo(excess);
 
@@ -74,6 +110,65 @@ contract FakeExpoTest is Test {
         uint got = abi.decode(data, (uint));
 
         assertEq(got, want);
+    }
+
+    // @audit Spec is off!
+    // Note that uv is used.
+    function test_EquivalenceSpec(uint excess) public {
+        vm.assume(excess < 100_000);
+
+        string[] memory args = new string[](4);
+        args[0] = "uv";
+        args[1] = "run";
+        args[2] = "scripts/fake_expo.py";
+        args[3] = vm.toString(excess);
+        uint want = abi.decode(vm.ffi(args), (uint));
+
+        (bool ok, bytes memory data) = addr.call(abi.encodePacked(excess));
+        assertTrue(ok);
+
+        uint got = abi.decode(data, (uint));
+
+        if (excess > 2892) {
+            assertNotEq(want, got);
+        } else {
+            assertEq(want, got);
+        }
+    }
+
+    // Note that uv is used.
+    function test_EquivalenceSpecBoundaries() public {
+        {
+        // <= 2892
+        string[] memory args = new string[](4);
+        args[0] = "uv";
+        args[1] = "run";
+        args[2] = "scripts/fake_expo.py";
+        args[3] = vm.toString(uint(2892));
+        uint want = abi.decode(vm.ffi(args), (uint));
+
+        (bool ok, bytes memory data) = addr.call(abi.encodePacked(uint(2892)));
+        assertTrue(ok);
+
+        uint got = abi.decode(data, (uint));
+        assertEq(want, got);
+        }
+
+        {
+        // > 2892
+        string[] memory args = new string[](4);
+        args[0] = "uv";
+        args[1] = "run";
+        args[2] = "scripts/fake_expo.py";
+        args[3] = vm.toString(uint(2893));
+        uint want = abi.decode(vm.ffi(args), (uint));
+
+        (bool ok, bytes memory data) = addr.call(abi.encodePacked(uint(2893)));
+        assertTrue(ok);
+
+        uint got = abi.decode(data, (uint));
+        assertNotEq(want, got);
+        }
     }
 }
 
