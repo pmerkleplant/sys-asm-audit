@@ -12,7 +12,7 @@
 ;; ----------------------------------------------------------------------------
 
 ;; BUFLEN returns the HISTORY_BUFFER_LENGTH as defined in the EIP.
-#define BUFLEN 8191
+#define BUFLEN 5
 
 ;; SYSADDR is the address which calls the contract to submit a new root.
 #define SYSADDR 0xfffffffffffffffffffffffffffffffffffffffe
@@ -61,7 +61,10 @@ load:
   jumpi @throw      ;; [input]
 
 ;; ================================
+;; @audit BUG off-by-one
+;;        We are able to read one element to far.
 
+  ;; ~~ Fix ~~
   ;; Check if input is requesting a block hash less than number - buflen
   ;; NOTE: Assumes that number < buflen!
   dup1              ;; [input, input]
@@ -72,6 +75,7 @@ load:
   lt                ;; [input < number - buflen, input]
   jumpi @throw
 
+  ;; ~~ Original ~~
   ;; Check if the input is requesting a block hash before the earliest available
   ;; hash currently. Since we've verfied that input <= number - 1, it's safe to
   ;; check the following:
