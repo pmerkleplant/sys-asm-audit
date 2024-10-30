@@ -1,7 +1,7 @@
-;; ▗▄▄▄▖▄▄▄▄ ▄▄▄▄ ▄ ▗▞▀▜▌ ▄▄▄  
-;;    ▐▌   █ █    █ ▝▚▄▟▌▀▄▄  ▄▄▄▄          
-;;    ▐▌█▀▀▀ ▀▀▀█ █      ▄▄▄▀ █ █ █         
-;;    ▐▌█▄▄▄ ▄▄▄█ █           █   █              
+;; ▗▄▄▄▖▄▄▄▄ ▄▄▄▄ ▄ ▗▞▀▜▌ ▄▄▄
+;;    ▐▌   █ █    █ ▝▚▄▟▌▀▄▄  ▄▄▄▄
+;;    ▐▌█▀▀▀ ▀▀▀█ █      ▄▄▄▀ █ █ █
+;;    ▐▌█▄▄▄ ▄▄▄█ █           █   █
 
 ;; This is an implementation of EIP-7251 style contract handling EL triggerred
 ;; consolidations. It leverages on the fee mechanism and the queue design of the
@@ -54,6 +54,8 @@
   ;; Record new request ~~
   ;; This is the default code path. It will attempt to record a user's request
   ;; so long as they pay the required fee.
+  ;;
+  ;; @audit ^ Comment off, there are still two code paths.
 
   ;; If calldatasize == 0, return the current excess requests.
   calldatasize          ;; [calldatasize]
@@ -86,7 +88,8 @@
   jumpi @revert         ;; [excess, update_fraction]
 
   push MIN_FEE          ;; [min_fee, excess, update_fraction]
-  #include "../common/fake_expo.eas"
+  #include "../common/fake_expo.eas"                                            ;; @audit Leaves more on the stack, ie + [i, numer, accum]
+                                                                                ;;        Lib could pop to be hygenic, or add comment to indicate trailing stack items
 
   ;; Determine if the fee provided is enough to cover the request fee.
   callvalue             ;; [callvalue, req_fee]
@@ -111,7 +114,7 @@
   add                   ;; [slot, tail_idx]
 
   ;; Write address to queue.
-  caller                ;; [caller, slot, ..]
+  caller                ;; [caller, slot, ..]           ;; [.. = tail_idx]
   dup2                  ;; [slot, caller, slot, ..]
   sstore                ;; [slot, ..]
 
@@ -141,7 +144,6 @@
   calldataload          ;; [target[16:48], slot, ..]
   swap1                 ;; [slot, target[16:48], ..]
   sstore                ;; [..]
-
 
   ;; Assemble log data.
   caller                ;; [caller, ..]
@@ -180,7 +182,7 @@ read_excess:
   sload                 ;; [excess_reqs]
   push 0                ;; [0, excess_reqs]
   mstore                ;; []
-  push 32               ;; [32]
+  push 32               ;; [32]                                                 ;; @audit Use msize
   push 0                ;; [0, 32]
   return                ;; []
 
@@ -210,7 +212,7 @@ read_excess:
 ;; reset.
 read_requests:
   ;; Determine the size of the queue by calculating tail - head.
-  push QUEUE_TAIL       ;; [tail_idx_slot, head_idx, head_idx]
+  push QUEUE_TAIL       ;; [tail_idx_slot, head_idx, head_idx]                  @audit stack comment, remove last 2
   sload                 ;; [tail_idx]
   push QUEUE_HEAD       ;; [head_idx_slot, tail_idx]
   sload                 ;; [head_idx, tail_idx]
@@ -236,6 +238,7 @@ begin_loop:
 accum_loop:
   ;; This loop will read each request and byte bang it into a RECORD_SIZE byte chunk.
 
+  ;; @audit In consolidations, MAX_PER_BLOCK is 1, so why even a loop and not just an if?
   ;; Bounds check, ensure i < count.
   dup2                  ;; [count, i, count, head_idx, tail_idx]
   dup2                  ;; [i, count, i, count, head_idx, tail_idx]
@@ -245,7 +248,7 @@ accum_loop:
   ;; Determine the storage slot of the address for this iteration. This value is
   ;; also the base for the other storage slots containing the source and the target
   ;; public keys. The base slot will be (queue_offset + (queue_head + i)*SLOTS_PER_ITEM).
-  dup3                  ;; [head_idx, i, ..]
+  dup3                  ;; [head_idx, i, ..]                                    @audit [..] = [count, head_idx, tail_idx]
   dup2                  ;; [i, head_idx, i, ..]
   add                   ;; [i+head_idx, i, ..]
   push SLOTS_PER_ITEM   ;; [SLOTS_PER_ITEM, i+head_idx, i, ..]
@@ -287,8 +290,22 @@ accum_loop:
   push RECORD_SIZE      ;; [size, i, target[16:32], src[32:48] ++ tgt[0:16], source[0:32], addr, i, ..]
   mul                   ;; [offset, target[16:32], src[32:48] ++ tgt[0:16], source[0:32], addr, i, ..]
 
+  ;; @audit Stack comments off, offset is missing
+  ;; --------------------------------------------------------
+
+  ;; === FIXED ===
   ;; Shift addr bytes.
-  swap4                 ;; [addr, src[32:48] ++ tgt[0:16], source[0:32], target[16:32], offset, i, ..]
+  ;;swap4                 ;; [addr, target[16:32], src[32:48] ++ tgt[0:16], source[0:32], offset, i, ..]
+  ;;push 12*8             ;; [96, addr, target[16:32], src[32:48] ++ tgt[0:16], source[0:32], offset, i, ..]
+  ;;shl                   ;; [addr << 96, target[16:32], src[32:48] ++ tgt[0:16], source[0:32], offset, i, ..]
+
+  ;;;; Store addr at offset = i*RECORD_SIZE.
+  ;;dup5                  ;; [offset, addr << 96, target[16:32], src[32:48] ++ tgt[0:16], source[0:32], offset, i, ..]
+  ;;mstore                ;; [target[16:32], src[32:48] ++ tgt[0:16], source[0:32], offset, i, ..]
+
+  ;; === ORIGINAL ===
+  ;; Shift addr bytes.
+  swap4                 ;; [addr, src[32:48] ++ tgt[0:16], source[0:32], target[16:32], offset, i, ..]                  @audit Stack wrong
   push 12*8             ;; [96, addr, src[32:48] ++ tgt[0:16], source[0:32], target[16:32], offset, i, ..]
   shl                   ;; [addr<<96, src[32:48] ++ tgt[0:16], source[0:32], target[16:32], offset, i, ..]
 
@@ -296,8 +313,9 @@ accum_loop:
   dup5                  ;; [offset, addr<<96, offset, src[32:48] ++ tgt[0:16], source[0:32], target[16:32], i, ..]
   mstore                ;; [offset, src[32:48] ++ tgt[0:16], source[0:32], target[16:32], i, ..]
 
+  ;; --------------------------------------------------------
   ;; Store source[0:32] at offset = i*RECORD_SIZE + 20.
-  swap2                 ;; [source[0:32], src[32:48] ++ tgt[0:16], target[16:32], offset, i, ..]
+  swap2                 ;; [source[0:32], src[32:48] ++ tgt[0:16], target[16:32], offset, i, ..]                        @audit Stack correct again starting here
   dup4                  ;; [offset, source[0:32], src[32:48] ++ tgt[0:16], target[16:32], offset, i, ..]
   push 20               ;; [20, offset, source[0:32], src[32:48] ++ tgt[0:16], target[16:32], offset, i, ..]
   add                   ;; [offset+20, source[0:32], src[32:48] ++ tgt[0:16], target[16:32], offset, i, ..]
@@ -319,7 +337,7 @@ accum_loop:
   push 1                ;; [1, i, ..]
   add                   ;; [i+1, ..]
 
-  jump @accum_loop      ;; [i, count, head_idx, tail_idx]
+  jump @accum_loop      ;; [i, count, head_idx, tail_idx]           ;; @audit Re: Don't need loop, literally enough to remove this line ;)
 
 update_head:
   ;; All requests have been read, update queue by adding the count read. to the
@@ -366,7 +384,7 @@ update_excess:
   iszero                ;; [inhibitor != excess, excess, count]
   jumpi @skip_reset     ;; [excess, count]
 
-  ;; Drop the excess from storage and use 0.
+  ;; Drop the excess from storage and use 0.                                    @audit Comment off: "from __stack__"
   pop                   ;; [count]
   push 0                ;; [reset_excess, count]
 
@@ -381,6 +399,7 @@ skip_reset:
   dup3                  ;; [excess, target, count, excess, count]
   dup3                  ;; [count, excess, target, count, excess, count]
   add                   ;; [count+excess, target, count, excess, count]
+  ;; @audit If count != 0 while inhibitor still set, contract is broken!
   gt                    ;; [count+excess > target, count, excess, count]
   jumpi @compute_excess ;; [count, excess, count]
 

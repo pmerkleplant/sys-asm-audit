@@ -15,6 +15,19 @@ uint256 constant queue_storage_offset = 4;
 
 // Test has some helper functions used by multiple system contract test suites.
 abstract contract Test is StdTest {
+
+  // Allows to get rid of build-wrapper.
+  //
+  // Use via `vm.etch(addr, getBytecode("src/beacon_root/main.eas"));`
+  function getBytecode(string memory path) internal returns (bytes memory) {
+    string[] memory args = new string[](3);
+    args[0] = "geas";
+    args[1] = "-no-nl";
+    args[2] = path;
+
+    return vm.ffi(args);
+  }
+
   // getRequests makes a call to the system contract as the system address in
   // order to trigger a dequeue action.
   function getRequests() internal returns (bytes memory) {

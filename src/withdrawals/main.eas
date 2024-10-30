@@ -59,6 +59,8 @@
   ;; Record new withdrawal request ~~
   ;; This is the default code path. It will attempt to record a user's request
   ;; so long as they pay the required fee.
+  ;;
+  ;; @audit ^ Comment off, there are still two code paths.
 
   ;; If calldatasize == 0, return the current excess requests.
   calldatasize          ;; [calldatasize]
@@ -91,7 +93,7 @@
   jumpi @revert         ;; [excess, update_fraction]
 
   push MIN_FEE          ;; [min_fee, excess, update_fraction]
-  #include "../common/fake_expo.eas"
+  #include "../common/fake_expo.eas"                                            ;; @audit fake_expo leaves vals on stack
 
   ;; Determine if the fee provided is enough to cover the withdrawal request fee.
   callvalue             ;; [callvalue, req_fee]
@@ -166,7 +168,7 @@ read_excess:
   ;; This is the read path, where we return the current excess.
   ;; Reject any callvalue here to prevent lost funds.
   callvalue             ;; [value]
-  iszero                ;; [value == 0]
+  iszero                ;; [value == 0]                                         @audit Remove double iszero (-6 gas)
   iszero                ;; [value != 0]
   jumpi @revert
 
@@ -175,7 +177,7 @@ read_excess:
   sload                 ;; [excess_reqs]
   push 0                ;; [0, excess_reqs]
   mstore                ;; []
-  push 32               ;; [32]
+  push 32               ;; [32]                                                 @audit Use msize (-1 gas)
   push 0                ;; [0, 32]
   return                ;; []
 
@@ -205,7 +207,7 @@ read_excess:
 ;; request count is reset.
 read_requests:
   ;; Determine the size of the queue by calculating tail - head.
-  push QUEUE_TAIL       ;; [tail_idx_slot, head_idx, head_idx]
+  push QUEUE_TAIL       ;; [tail_idx_slot, head_idx, head_idx]                  @audit Stack comment, remove last 2
   sload                 ;; [tail_idx]
   push QUEUE_HEAD       ;; [head_idx_slot, tail_idx]
   sload                 ;; [head_idx, tail_idx]
@@ -384,7 +386,7 @@ update_excess:
   iszero                ;; [inhibitor != excess, excess, count, count]
   jumpi @skip_reset     ;; [excess, count, count]
 
-  ;; Drop the excess from storage and use 0.
+  ;; Drop the excess from storage and use 0.                                    @audit Comment of: storage<->stack
   pop                   ;; [count, count]
   push 0                ;; [reset_excess, count]
 
@@ -399,6 +401,7 @@ skip_reset:
   dup3                  ;; [excess, target, count, excess]
   dup3                  ;; [count, excess, target, count, excess, count]
   add                   ;; [count+excess, target, count, excess, count]
+  ;; @audit If count >= 15 while inhibitor still set, contract is broken!
   gt                    ;; [count+excess > target, count, excess, count]
   jumpi @compute_excess ;; [count, excess, count]
 
@@ -444,6 +447,58 @@ revert:
 
 ;; Helper for storing little-endian amount.
 #define %mstore_uint64_le() { ;; [offset, value]
+;; ~~ Explanation ~~
+;;
+;; amt  = 0x0011223344556677
+;; want = 0x7766554433221100
+;;
+;; Note that amt is normally stored in memory as:
+;;
+;;   [0x00:0x20]: 0x0000000000000000000000000000000000000000000000000011223344556677
+;;                  ^^ hb                                                         ^^ lb
+;;
+;; This means the highest order byte is at 0, lowest order byte at 31:
+;;
+;;   hb := byte(0, mload(0))
+;;   lb := byte(31, mload(0))
+;;   assert(hb == 0x00)
+;;   assert(lb == 0x77)
+;;
+;; Therefore, we want little endian amt in memory as:
+;;
+;;   [0x00:0x20]: 0x7766554433221100000000000000000000000000000000000000000000000000
+;;                  ^^ lb                                                         ^^ hb
+;;
+;; ie:
+;;
+;;   hb := byte(31, mload(0))
+;;   lb := byte(0, mload(0))
+;;   assert(hb == 0x77)
+;;   assert(lb == 0x00)
+;;
+;; Note that hb/lb names are wrong now. hb is the lowest significant byte and lb the highest.
+;;
+;; ~~ How is this achieved?
+;;
+;; The alg is as follows:
+;; First note that its an unrolled loop, ie each code block does the same thing.
+;;
+;; Take the value and shift it to the far right, ie `value >> (7-i)*8` (7 = len - 1), eg:
+;; 0x0011223344556677 >> (7-1)*8 = 0x0000000000000011
+;;     ^^ second iteration, i = 1
+;;
+;; For storing to memory mstore8 is used, ie we store single bytes.
+;; We first store at the right most slot `offset + 7`:
+;;
+;;   [0x00:0x08]: 0x00000000000077
+;;                              ^^ = offset + 7
+;;
+;; Next, we store the second byte at the second last slot:
+;;
+;;   [0x00:0x08]: 0x00000000006677
+;;                            ^^ = offset + 6
+;;
+;; and so on...
   dup2                  ;; [value, offset, value]
   push 7*8              ;; [56, value, offset, value]
   shr                   ;; [value>>56, offset, value]

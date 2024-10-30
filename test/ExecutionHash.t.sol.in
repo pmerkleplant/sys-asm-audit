@@ -6,7 +6,7 @@ import "../src/Contract.sol";
 
 address constant addr = 0x000000000000000000000000000000000000aaaa;
 address constant sysaddr = 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE;
-uint256 constant buflen = 8191;
+uint256 constant buflen = 5;
 bytes32 constant hash    = hex"88e96d4537bea4d9c05d12549907b32561d3bf31f45aae734cdc119f13406cb6";
 
 function lastBlockNumber() view returns (bytes32) {
@@ -70,6 +70,7 @@ contract ContractTest is Test {
         assertEq(data, hex"");
 
         // Wrap around buflen once backward.
+        // @audit Does not check the actual boundary bc number = block.number-1!
         (ret, data) = unit.call(bytes.concat(bytes32(number-buflen-1)));
         assertFalse(ret);
         assertEq(data, hex"");
@@ -145,4 +146,68 @@ contract ContractTest is Test {
             assertEq(got, bytes.concat(bytes32(i*1337)));
         }
     }
+
+    // NOTE: To test, update BUFLEN in asm and buflen in this file to 5.
+    /*
+    function test_limits() public {
+        uint start = 1;
+        vm.roll(start);
+
+        // Write to each slot exactly once.
+        for (uint i; i < buflen; i++) {
+            vm.roll(block.number+1);
+
+            vm.prank(sysaddr);
+            // 11k
+            uint num;
+            if (block.number - 1 == 0) {
+                num = type(uint).max;
+            } else {
+                num = block.number - 1;
+            }
+
+            (bool ok, bytes memory data) = unit.call(abi.encode(num));
+            require(ok, "sysaddr/push-fail");
+            assertEq(data, hex"");
+
+            console.log(string.concat("[block=", vm.toString(block.number), "] sysaddr set ", vm.toString(block.number-1), " at index ", vm.toString((block.number - 1) % buflen)));
+        }
+
+        // Verify storage[0, 4=buflen-1] is non-zero.
+        for (uint i; i < buflen; i++) {
+            uint val = uint(vm.load(addr, bytes32(i)));
+            assertTrue(val != 0);
+        }
+        // Verify storage[5=buflen] is zero.
+        assertTrue(vm.load(addr, bytes32(uint(5))) == 0);
+
+        // We are now at block 6.
+        assertTrue(block.number == buflen+1);
+
+        // This means we can read from [1, 5].
+        // These are 5 = buflen elements.
+        bool ret;
+        bytes memory a;
+        for (uint i = 1; i <= 5; i++) {
+            (ret, a) = unit.call(abi.encode(i));
+            require(ret, "Failed fetching");
+            console.log(string.concat("[block=6] user read for block=", vm.toString(i), " and got=", vm.toString(abi.decode(a, (uint)))));
+        }
+
+        // It fails to read for block 6, ie current block.
+        console.log("[block=6] user fails to read for block=6 (ie block.number)");
+        (ret, ) = unit.call(abi.encode(6));
+        assertFalse(ret);
+
+        // It SHOULD fail to read for block 0, ie current block.
+        assertTrue(block.number - buflen - 1 == 0);
+        (ret, ) = unit.call(abi.encode(0));
+        if (ret) {
+            console.log("[block=6] user DOES NOT fail to read for block=0 (ie block.number - buflen - 1)");
+        } else {
+            console.log("[block=6] user fails to read for block=0 (ie block.number - buflen - 1)");
+        }
+        assertFalse(ret);
+    }
+    */
 }
