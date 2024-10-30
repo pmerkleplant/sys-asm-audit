@@ -71,7 +71,7 @@ contract ExecutionHashTest is Test {
             assertTrue(ok);
             assertEq(data.length, 0);
 
-            // Read buflen - 1 elements, ie range [block.number - 1 - (buflen - 1), block.number - 1]
+            // Read buflen elements, ie range [block.number - 1 - (buflen - 1), block.number - 1]
             uint counter;
             for (uint j; j < buflen; j++) {
                 uint request = block.number - 1 - j;

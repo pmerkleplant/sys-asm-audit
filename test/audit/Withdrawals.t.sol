@@ -293,9 +293,13 @@ contract WithdrawalsTest is Test {
         bytes memory data;
 
         vm.prank(user);
+        vm.startSnapshotGas("set");
         (ok, data) = addr.call{value: type(uint).max}(payload);
+        uint gasUsage = vm.stopSnapshotGas();
         assertTrue(ok);
         assertEq(data.length, 0);
+
+        console.log("Gas used", gasUsage);
 
         // Verify data got written at correct offsets:
         uint start = (tail * 3) + 4;
