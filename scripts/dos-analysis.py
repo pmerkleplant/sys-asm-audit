@@ -16,9 +16,8 @@ def fake_exponential(factor: int, numerator: int, denominator: int) -> int:
 ####### DoS Analysis #######
 #
 # Note that DoS-ing the consolidations contract can only be attributed to
-# griefing.
-# However, DoS-ing withdrawals may lead to financial gains, eg via preventing
-# competitors' payout.
+# griefing. However, DoS-ing withdrawals may lead to financial gains, eg via
+# preventing competitors' payout.
 #
 # Therefore, this analysis is concentrated on the withdrawal contract.
 # There are two differences compared to the consolidations contract:
@@ -49,6 +48,15 @@ dos_blocks = max_requests / 16
 dos_seconds = dos_blocks * 12  # Assumes 12s block time
 print(f"DoS: blocks={dos_blocks}, seconds={dos_seconds}")
 # = 188 blocks or 2250 seconds ~= 0.6 hours
+#
+# [Consolidations]
+# Quick check if 1 request is processed per block, as per consolidations
+# contract.
+dos_blocks_consolidations = max_requests / 1
+dos_seconds_consolidations = dos_blocks_consolidations * 12
+print(f"[Consolidations] DoS: blocks={dos_blocks_consolidations}, seconds={dos_seconds_consolidations}")
+# = 3000 blocks or 36k seconds = 10 hours
+# [END Consolidations]
 #
 # Note that continuing the attack in the next block _SHOULD_ become impossible
 # due to the updated excess value and therefore high fee.
@@ -103,6 +111,22 @@ while True:
         blocks = blocks + 1
 print(f"Time until 1 ETH gives request: blocks={blocks}, seconds={blocks * 12}")
 # = 1147 blocks or 13,764 seconds ~= 3.8 hours
+# [Consolidations]
+excess = excess_after_attack
+blocks = 1
+while True:
+    # Let next block be processed, ie excess is updated.
+    # Note that excess is decreased each block by the target.
+    excess = excess - 1
+    # Compute new fee.
+    fee = fake_exponential(FACTOR, excess, DENOMINATOR)
+    if fee <= 1e18:
+        break
+    else:
+        blocks = blocks + 1
+print(f"[Consolidations] Time until 1 ETH gives request: blocks={blocks}, seconds={blocks * 12}")
+# = 2294 blocks or 27,528 seconds ~= 7.6 hours
+# [END Consolidations]
 #
 # The time difference is negligible... power of exponentiation.
 #
@@ -112,6 +136,10 @@ print(f"Time until 1 ETH gives request: blocks={blocks}, seconds={blocks * 12}")
 # single block for roughly 3.8 hours with __only__ the opportunity cost of
 # the wasted block.
 #
+# [Consolidations]
+# For consolidations, its 7.6 hours.
+# [END Consolidations]
+#
 # Note that there are multiple entities that are producing blocks in a higher
 # frequency than 3.8 hours.
 #
@@ -119,6 +147,6 @@ print(f"Time until 1 ETH gives request: blocks={blocks}, seconds={blocks * 12}")
 #
 #   For higher excess values, the fee should not decrease
 #
-# This invariant is starting for `excess >= 2892`. The result starts to
-# oscilate. For more info, see fake_expo_plots/emv.png.
+# This invariant is broken for `excess >= 2892`. The result starts to oscilate.
+# For more info, see fake_expo_plots/emv.png.
 

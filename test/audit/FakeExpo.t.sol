@@ -53,8 +53,6 @@ contract FakeExpoTest is Test {
 
     // @audit Breaks implicit invariant of only increasing fee!
     function test_NotDecreasing() public pure {
-        // Eventhough we get an overflow at ~2.8k, the result is still only
-        // increasing.
         uint force = 10_000;
         uint prev;
         uint biggest = type(uint).max;
@@ -81,7 +79,7 @@ contract FakeExpoTest is Test {
     }
 
     function test_Plot() public pure {
-        for (uint i; i < 10_000; i++) {
+        for (uint i; i < 20_000; i++) {
             uint cur = fakeExpo(i);
             console.log(cur);
         }

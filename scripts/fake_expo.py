@@ -12,11 +12,6 @@ def fake_exponential(factor: int, numerator: int, denominator: int) -> int:
         i += 1
     return output // denominator
 
-def encode_and_print(price):
-    enc = encode(['uint256'], [int(price)])
-    ## append 0x for FFI parsing
-    print("0x" + enc.hex())
-
 # Expect exactly one argument
 if len(sys.argv) != 2:
     exit(1)

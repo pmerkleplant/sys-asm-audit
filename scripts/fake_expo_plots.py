@@ -38,7 +38,7 @@ if not Path("fake_expo_plots/00_fee_0-10.png").is_file():
 # Plot EVM implementation value (if do not exist yet).
 if not Path("fake_expo_plots/evm.png").is_file():
     with open('fake_expo_evm.txt', 'r') as file:
-        excess = [i for i in range(10_000)]
+        excess = [i for i in range(20_000)]
         fee = [float(line.strip()) for line in file]
 
         plt.plot(excess, fee, label='')
