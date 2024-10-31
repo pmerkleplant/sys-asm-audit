@@ -63,9 +63,7 @@ contract FakeExpoTest is Test {
                 biggest = cur;
             }
 
-            if (cur > biggest) {
-
-            //if (prev > cur) {
+            if (prev > cur) {
                 console.log("biggest", biggest);
                 console.log("prev", prev);
                 console.log("cur", cur);
@@ -78,6 +76,37 @@ contract FakeExpoTest is Test {
         assertTrue(false);
     }
 
+    // Starting at excess=2893 the fake_expo overflows and the results oscilate.
+    // This test proves that the result is never less than for excess < 2893
+    // though.
+    //
+    // => THIS IS WRONG! Fee decreases slightly for
+    //
+    // Note that reaching an excess >= 2893 is, under reasonable assumptions,
+    // possible.
+    function test_AfterOverflow_NotLessThanBeforeOverflow() public pure {
+        uint fee_beforeOverflow = fakeExpo(2892);
+        uint force = 10_000;
+        for (uint i = 2896; i < force; i++) {
+            uint cur = fakeExpo(i);
+
+            if (cur < fee_beforeOverflow) {
+                console.log("Mmhhhh");
+                console.log(i);
+                revert("....");
+            }
+        }
+    }
+
+    function test_Plot2() public pure {
+        for (uint i = 2800; i < 3000; i++) {
+            uint cur = fakeExpo(i);
+            console.log(cur);
+        }
+        assertTrue(false);
+    }
+
+    // Used to produce plot. Prints fees for excess [0, 20k].
     function test_Plot() public pure {
         for (uint i; i < 20_000; i++) {
             uint cur = fakeExpo(i);
@@ -98,6 +127,7 @@ contract FakeExpoTest is Test {
     }
 
     function test_EquivalenceSolidity(uint excess) public {
+        // Otherwise OOG possible.
         vm.assume(excess < 100_000);
 
         uint want = fakeExpo(excess);

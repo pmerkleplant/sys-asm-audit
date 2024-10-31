@@ -92,7 +92,6 @@ while True:
         break
     else:
         blocks = blocks + 1
-
 print(f"Time until 10 ETH gives request: blocks={blocks}, seconds={blocks * 12}")
 # = 1128 blocks or 13,536 seconds ~= 3.7 hours
 #
@@ -117,7 +116,7 @@ blocks = 1
 while True:
     # Let next block be processed, ie excess is updated.
     # Note that excess is decreased each block by the target.
-    excess = excess - 1
+    excess = excess - 1 # TARGET=1
     # Compute new fee.
     fee = fake_exponential(FACTOR, excess, DENOMINATOR)
     if fee <= 1e18:
@@ -133,8 +132,8 @@ print(f"[Consolidations] Time until 1 ETH gives request: blocks={blocks}, second
 # == Summary ==
 #
 # In total a block proposer can effectively DoS the withdrawals contract with a
-# single block for roughly 3.8 hours with __only__ the opportunity cost of
-# the wasted block.
+# single block for roughly 3.8 hours with __only__ the opportunity cost of the
+# wasted block.
 #
 # [Consolidations]
 # For consolidations, its 7.6 hours.

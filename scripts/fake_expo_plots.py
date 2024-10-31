@@ -35,9 +35,9 @@ if not Path("fake_expo_plots/00_fee_0-10.png").is_file():
         plt.legend()
         plt.savefig(f'fake_expo_plots/{i:02}_fee_{start}-{end}.png')
 
-# Plot EVM implementation value (if do not exist yet).
+# Plot EVM implementation values (if does not exist yet).
 if not Path("fake_expo_plots/evm.png").is_file():
-    with open('fake_expo_evm.txt', 'r') as file:
+    with open("fake_expo_evm.txt", "r") as file:
         excess = [i for i in range(20_000)]
         fee = [float(line.strip()) for line in file]
 
@@ -48,3 +48,17 @@ if not Path("fake_expo_plots/evm.png").is_file():
         plt.title('Fees')
         plt.legend()
         plt.savefig(f'fake_expo_plots/evm.png')
+
+# Plot EVM overflow boundary (if does not exist yet).
+if not Path("fake_expo_plots/evm_overflow_boundary.png").is_file():
+    with open("fake_expo_evm_overflow_boundary.txt", "r") as file:
+        excess = [i for i in range(2800, 3000)]
+        fee = [float(line.strip()) for line in file]
+
+        plt.plot(excess, fee, label='')
+        plt.xlabel('excess')
+        plt.ylabel('fee in WEI')
+        plt.subplots_adjust(left=0.2, right=0.8, bottom=0.2, top=0.8)
+        plt.title('Fees')
+        plt.legend()
+        plt.savefig(f'fake_expo_plots/evm_overflow_boundary.png')
