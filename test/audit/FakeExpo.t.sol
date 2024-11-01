@@ -44,6 +44,8 @@ contract FakeExpoTest is Test {
         while (numerator_accum > 0) {
             output += numerator_accum;
             numerator_accum = (numerator_accum * numerator) / (denominator * i);
+            //                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^ this part overflows
+
             i += 1;
         }
         return output / denominator;
@@ -98,6 +100,8 @@ contract FakeExpoTest is Test {
         }
     }
 
+    // Used to produce plots for overflow boundary.
+    // Overflow happens at excess = 2893.
     function test_Plot2() public pure {
         for (uint i = 2800; i < 3000; i++) {
             uint cur = fakeExpo(i);
@@ -140,7 +144,6 @@ contract FakeExpoTest is Test {
         assertEq(got, want);
     }
 
-    // @audit Spec is off!
     // Note that uv is used.
     function test_EquivalenceSpec(uint excess) public {
         vm.assume(excess < 100_000);

@@ -36,11 +36,11 @@ case $1 in
     ;;
   withdrawals|wxs|7002)
     echo "searching for withdrawals deployment data "
-    nick search --score=$score --initcode="0x$(geas src/withdrawals/ctor.eas)" --prefix=0x0000 --suffix=0xaaaa
+    $HOME/dev/pectra-audit/nick/nick build --initcode="0x$(geas src/withdrawals/ctor.eas)" #--prefix=0x0000 --suffix=0xaaaa
     ;;
   consolidations|cxs|7251)
     echo "searching for consolidations deployment data "
-    nick search --score=$score --initcode="0x$(geas src/consolidations/ctor.eas)" --prefix=0x0000 --suffix=0xbbbb
+    $HOME/dev/pectra-audit/nick/nick build --initcode="0x$(geas src/consolidations/ctor.eas)" #--prefix=0x0000 --suffix=0xbbbb
     ;;
   exechash|e|2935)
     echo "searching for execution hash deployment data "
